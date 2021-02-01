@@ -7,7 +7,7 @@
 
 # Train
 #python train.py --nlayer 18 --name 210117_aug --batch-size 64 --gammas 0.1 --schedule 10 20 --nepoch 30 --lr 0.001 --gpu-num 1 --augment all --flatten
-python train.py --name 210120_hrnet --batch-size 16 --nepoch 20 --gpu-num 1 --augment cutmix --flatten --arch hrnet
+python train.py --name 210120_test --batch-size 16 --nepoch 20 --gpu-num 0 --augment cutmix --flatten --arch hrnet
 
 
 # Valid

@@ -63,7 +63,7 @@ class PoseDataset(Dataset):
         #valid_dir = [21]
         # valid_dir = [28, 29] # nlos wall
         valid_dir = [x for x in range(21, 40)]
-        #valid_dir = [x for x in range(1, 40)]  # Model test
+        valid_dir = [x for x in range(1, 40)]  # Model test
         dir_count = 0
 
         rf_index = 0
@@ -115,7 +115,8 @@ class PoseDataset(Dataset):
                     #---------- 2차원으로 만들기 -----------
                     if self.flatten:
                         #temp_raw_rf = temp_raw_rf.flatten(start_dim=1)
-                        temp_raw_rf = temp_raw_rf.view(120, -1)
+                        #print("before flatten ",temp_raw_rf.shape)
+                        temp_raw_rf = temp_raw_rf.view(128, -1)
                         #print("now shape",temp_raw_rf.shape)  # 1. 1, 128, 135
                         temp_raw_rf = temp_raw_rf.unsqueeze(0)
                         '''

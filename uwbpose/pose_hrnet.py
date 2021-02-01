@@ -302,10 +302,10 @@ class PoseHighResolutionNet(nn.Module):
         print("---------------flatten pose hr-net---------------")
         self.my_input_d = 1 #
         # stem net
-        self.conv1 = nn.Conv2d(self.my_input_d, 64, kernel_size=3, stride=1, #2, 
+        self.conv1 = nn.Conv2d(self.my_input_d, 64, kernel_size=3, stride=2, #2, 
                                 padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64, momentum=BN_MOMENTUM)
-        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, #2,
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=2, #2,
                                     padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(64, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
@@ -448,8 +448,8 @@ class PoseHighResolutionNet(nn.Module):
         return nn.Sequential(*modules), num_inchannels
 
     def forward(self, x):
-        #print("-------------stage 1-------------")
-        #print("input shape = ", x.shape)  # torch.Size([1, 1, 128, 128])
+        print("-------------stage 1-------------")
+        print("input shape = ", x.shape)  # torch.Size([1, 1, 128, 128])
         x = self.conv1(x)
         #print(x.shape)  # torch.Size([1, 64, 64, 64])
         x = self.bn1(x)
@@ -461,9 +461,9 @@ class PoseHighResolutionNet(nn.Module):
         x = self.relu(x)
         #print(x.shape) # torch.Size([1, 64, 32, 32])
         x = self.layer1(x)
-        #print(x.shape) # torch.Size([1, 256, 32, 32])
+        print(x.shape) # torch.Size([1, 256, 32, 32])
 
-        #print("-------------stage 2-------------")
+        print("-------------stage 2-------------")
         x_list = []
         for i in range(self.stage2_cfg['NUM_BRANCHES']):
             if self.transition1[i] is not None:
@@ -471,12 +471,12 @@ class PoseHighResolutionNet(nn.Module):
             else:
                 x_list.append(x)
         y_list = self.stage2(x_list)
-        #for i in range(self.stage2_cfg['NUM_BRANCHES']):        # y_list[0] = torch.Size([1, 48, 32, 32])
-        #    print("y_list[{}] = {}".format(i, y_list[i].shape)) # y_list[1] = torch.Size([1, 96, 16, 16])
+        for i in range(self.stage2_cfg['NUM_BRANCHES']):        # y_list[0] = torch.Size([1, 48, 32, 32])
+            print("y_list[{}] = {}".format(i, y_list[i].shape)) # y_list[1] = torch.Size([1, 96, 16, 16])
         
         
 
-        #print("-------------stage 3-------------")
+        print("-------------stage 3-------------")
         x_list = []
         for i in range(self.stage3_cfg['NUM_BRANCHES']):
             if self.transition2[i] is not None:
@@ -484,12 +484,12 @@ class PoseHighResolutionNet(nn.Module):
             else:
                 x_list.append(y_list[i])
         y_list = self.stage3(x_list)
-        #for i in range(self.stage3_cfg['NUM_BRANCHES']):           # y_list[0] = torch.Size([1, 48, 32, 32])
-        #    print("y_list[{}] = {}".format(i, y_list[i].shape))    # y_list[1] = torch.Size([1, 96, 16, 16])
+        for i in range(self.stage3_cfg['NUM_BRANCHES']):           # y_list[0] = torch.Size([1, 48, 32, 32])
+            print("y_list[{}] = {}".format(i, y_list[i].shape))    # y_list[1] = torch.Size([1, 96, 16, 16])
                                                                    # y_list[2] = torch.Size([1, 192, 8, 8])
         
 
-        #print("-------------stage 4-------------")
+        print("-------------stage 4-------------")
         x_list = []
         for i in range(self.stage4_cfg['NUM_BRANCHES']):
             if self.transition3[i] is not None:
@@ -497,11 +497,11 @@ class PoseHighResolutionNet(nn.Module):
             else:
                 x_list.append(y_list[i])
         y_list = self.stage4(x_list)
-        #print(y_list[0].shape)     # torch.Size([1, 48, 32, 32])
+        print(y_list[0].shape)     # torch.Size([1, 48, 32, 32])
 
-        #print("-------------final_layer-------------")
+        print("-------------final_layer-------------")
         x = self.final_layer(y_list[0])
-        #print(x.shape)
+        print(x.shape)
         '''
         print("-------------get_max_preds-------------")
 
