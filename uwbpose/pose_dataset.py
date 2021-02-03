@@ -39,11 +39,11 @@ class PoseDataset(Dataset):
         self.flatten = args.flatten
         self.arch = args.arch
         if self.arch =='hrnet':
-            self.input_size=128
+            self.input_size= 128
         else:
             self.input_size = 120
 
-        data_path = '../../save_data_ver2'
+        data_path = '/data/nlos/save_data_ver2'
         #data_path_list = os.listdir(data_path)
         data_path_list = glob.glob(data_path + '/*')
         #print("data list", data_path_list)
@@ -63,8 +63,10 @@ class PoseDataset(Dataset):
         #valid_dir = [21]
         # valid_dir = [28, 29] # nlos wall
         valid_dir = [x for x in range(21, 40)]
-        valid_dir = [x for x in range(1, 40)]  # Model test
+        
+        #valid_dir = [x for x in range(1, 40)]  # Model test
         dir_count = 0
+
 
         rf_index = 0
         if mode == 'train':
@@ -89,6 +91,7 @@ class PoseDataset(Dataset):
             elif mode == 'valid' and dir_count not in valid_dir:
                 dir_count += 1
                 continue
+
             if os.path.isdir(file) is True:
                 # 각 폴더 안의 npy 데이터
                 rf_file_list = glob.glob(file + '/raw/*.npy')
@@ -119,14 +122,15 @@ class PoseDataset(Dataset):
                         temp_raw_rf = temp_raw_rf.view(128, -1)
                         #print("now shape",temp_raw_rf.shape)  # 1. 1, 128, 135
                         temp_raw_rf = temp_raw_rf.unsqueeze(0)
-                        '''
+                        
                         resize_transform = transforms.Compose(
                             [transforms.ToPILImage(),
                              transforms.Resize((self.input_size, self.input_size)),
                              transforms.ToTensor()]
                         )
+                        
                         temp_raw_rf = resize_transform(temp_raw_rf)
-                        '''
+                        
                     #print("now shape",temp_raw_rf.shape)
                     rf_data.append(temp_raw_rf)
 
@@ -216,9 +220,9 @@ class PoseDataset(Dataset):
                 r = np.random.rand(1)
                 if r < 0.4:
                     rf, gt = cutmix(rf, target_rf, gt, target_gt)
-                elif r < 0.7:
-                    rf = self.intensity(rf)
-                elif r < 0.9:
+                #elif r < 0.7:
+                    #rf = self.intensity(rf)
+                elif r < 0.8:
                     rf, gt = mixup(rf, target_rf, gt, target_gt)
             else:
                 print('wrong augmentation')

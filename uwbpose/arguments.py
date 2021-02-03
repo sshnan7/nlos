@@ -31,7 +31,7 @@ def get_arguments():
     parser.add_argument('--normalize', action='store_true', default=False,
             help='data normalization by dividing the data with std-dev')
     
-    parser.add_argument('--cutoff', type=int, default=256, # 128, 246
+    parser.add_argument('--cutoff', type=int, default=128, # 128, 246
             help='cut off the front of the input data,   --> length = 2048 - cutoff')
 
 

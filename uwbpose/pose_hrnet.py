@@ -302,7 +302,7 @@ class PoseHighResolutionNet(nn.Module):
         print("---------------flatten pose hr-net---------------")
         self.my_input_d = 1 #
         # stem net
-        self.conv1 = nn.Conv2d(self.my_input_d, 64, kernel_size=3, stride=2, #2, 
+        self.conv1 = nn.Conv2d(self.my_input_d, 64, kernel_size=3, stride=1, #2, 
                                 padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64, momentum=BN_MOMENTUM)
         self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=2, #2,

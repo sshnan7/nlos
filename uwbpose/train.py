@@ -46,6 +46,7 @@ if torch.cuda.is_available():
     print("gpu", torch.cuda.current_device(), torch.cuda.get_device_name())
 else:
     print("cpu")
+    
 #----- model -----
 if args.arch =='hrnet':
     model = get_pose_hrnet()
