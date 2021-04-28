@@ -35,6 +35,40 @@ class JointsMSELoss(nn.Module):
             #loss += 0.5 * self.criterion(heatmap_pred, heatmap_gt)
             loss += 0.5 * self.criterion(heatmap_pred*target_weight, heatmap_gt)
         return loss / num_joints
+        
+def dual_loss(output, target):
+    loss = 0
+    use_loss = 0
+    with torch.no_grad():
+        batch_size = output.size(0)
+        label_size = output.size(1)
+        pred = output.reshape((batch_size, -1))
+        for i in range(batch_size):
+            #temp_loss = torch.tensor([1])
+            temp_loss = 1
+            temp_target = target[i]
+            if pred[i][temp_target] > 0 :
+                for j in range(label_size):
+                    if j == temp_target or pred[i][j]<=0 :
+                        continue
+                    else :
+                        if pred[i][temp_target] / (pred[i][temp_target] + pred[i][j]) < temp_loss :
+                            temp_loss = pred[i][temp_target] / (pred[i][temp_target] + pred[i][j])
+            temp_loss = 1 - temp_loss
+            if temp_loss >= 0.005:
+                loss += temp_loss
+                
+        loss = loss / batch_size
+        if loss != 0:
+            use_loss += 1
+        
+    return loss, use_loss
+'''
+        _, predicted = torch.max(output, 1)
+        for i in range(len(output[0])):
+            print(i)
+'''
+        
 
 if __name__ == '__main__':
     a = JointsMSELoss()

@@ -73,6 +73,7 @@ class Bottleneck(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
+    
 
     def forward(self, x):
         residual = x
@@ -123,10 +124,21 @@ class PoseResNet(nn.Module):
             [256, 256, 256],  # NUM_DECONV_FILTERS
             [4, 4, 4],  # NUM_DECONV_KERNERLS
         )
-
+        
+        #by 승환
+        #self.human_id_layer1 = nn.Linear(512*15*15, 75) #for 3*3
+        self.human_id_layer1 = nn.Linear(57344, 75) #for 2*2
+        #self.human_id_layer1 = nn.Linear(13*120*120, 120)
+        self.human_id_layer2 = nn.Linear(75, 30)
+        self.human_id_layer3 = nn.Linear(30, 10)
+        self.L_relu = nn.LeakyReLU(0.1)
+        
+        #self.human_id_layer4 = nn.Linear(15*15, 15*7)
+        #self.human_id_layer5 = nn.Linear(15*15*7, 13)
+        
         self.final_layer = nn.Conv2d(
             in_channels=256,  # NUM_DECONV_FILTERS[-1]
-            out_channels=13,  # NUM_JOINTS,
+            out_channels=13,  # NUM_JOINTS : 13 + human_number : 1
             kernel_size=1,  # FINAL_CONV_KERNEL
             stride=1,
             padding=0  # if FINAL_CONV_KERNEL = 3 else 1
@@ -203,12 +215,32 @@ class PoseResNet(nn.Module):
         x = self.layer3(x)
         #print(x.shape)
         x = self.layer4(x)
+        #by 승환
+        
+        #x_human = x.view(-1, 512*15*15) 3*3
+        x_human = x.view(-1, 57344)
+        x_human = self.L_relu(self.human_id_layer1(x_human))
+        x_human = self.L_relu(self.human_id_layer2(x_human))
+        #x_human = F.relu(self.human_id_layer3(x_human))
+        #x_human = F.relu(self.human_id_layer4(x_human))
+        x_human = (self.human_id_layer3(x_human))
+        
+        
         #print(x.shape)
         x = self.deconv_layers(x)
         #print(x.shape)
         x = self.final_layer(x)
         #print(x.shape)
-        return x
+        #print(x.shape)
+        '''
+        x_human = x.view(-1, 13*120*120)
+        x_human = F.relu(self.human_id_layer1(x_human))
+        #x_human = F.relu(self.human_id_layer2(x_human))
+        #x_human = F.relu(self.human_id_layer3(x_human))
+        #x_human = F.relu(self.human_id_layer4(x_human))
+        x_human = (self.human_id_layer3(x_human))
+        '''
+        return x, x_human
 
     def init_weights(self, pretrained=''):
         pass
@@ -219,7 +251,6 @@ resnet_spec = {18: (BasicBlock, [2, 2, 2, 2]),
                50: (Bottleneck, [3, 4, 6, 3]),
                101: (Bottleneck, [3, 4, 23, 3]),
                152: (Bottleneck, [3, 8, 36, 3])}
-
 
 def get_2d_pose_net(num_layer, input_depth, **kwargs):
     global INPUT_D
@@ -235,3 +266,6 @@ def get_2d_pose_net(num_layer, input_depth, **kwargs):
     #    model.init_weights(cfg.MODEL.PRETRAINED)
     # model.init_weights('models/imagenet/resnet50-19c8e357.pth')
     return model
+    
+    
+    

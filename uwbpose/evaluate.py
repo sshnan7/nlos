@@ -7,7 +7,7 @@
 
 import numpy as np
 from inference import get_max_preds
-
+import torch
 import torch.nn as nn
 
 
@@ -81,7 +81,42 @@ def accuracy(output, target, hm_type='gaussian', thr=0.5):
         acc[0] = avg_acc
     return acc, avg_acc, cnt, pred
 
+def human_accuracy(output, target):
+    i = list(target.size())
+    with torch.no_grad():
+        _, predicted = torch.max(output, 1) # _는 label개수 중에서 최대인 확률의 값, predicted는 그 label의 index
+        acc = 0
+        avg_acc = 0
+        cnt = 0
+        acc += (predicted == target).sum().item()
+        cnt += i[0]
+        avg_acc = acc/cnt
+        return avg_acc, cnt
 
+def dis_accuracy(output, target):
+    i = list(target.size())
+    with torch.no_grad():
+        _, predicted = torch.max(output, 1) # _는 label개수 중에서 최대인 확률의 값, predicted는 그 label의 index
+        acc = 0
+        avg_acc = 0
+        cnt = 0
+        for k in range(_.shape[0]):
+            if _[k] >= 0.5:
+                _[k] = 1
+            else :
+                _[k] = 0
+            #print("output", "target", _[k], target[k][0])
+            if _[k] == target[k][0]:
+                acc +=1
+        #_ = _.unsqueeze(1)
+        #print("output", _)
+        #print("target", target)
+        #acc += (_ == target).sum().item()
+        #print("acc", acc)
+        cnt += i[0]
+        avg_acc = acc/cnt
+        return avg_acc, cnt
+    
 def pck(pred, target):
     keypoints = [ "padding", "nose", "left_eye", "right_eye", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow", "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle" ]
 
