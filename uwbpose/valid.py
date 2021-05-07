@@ -19,13 +19,14 @@ from human_idnet import *
 #def prediction(model, rf, target_heatmap, criterion, target_h_label):
 def prediction(model, generator, rf, target_heatmap, criterion, target_h_label):
     #out, out_human = model(rf) #for pose + id
-    rf = rf.view(-1, 1792)
+    rf = rf.view(-1, 1792)# 3은 안테나 수 아닐땐 1 #1792 default
     #print(rf.shape)
     rf = rf.float()
     gen_rf = generator(rf.unsqueeze(1))
     gen_rf = gen_rf
     gen_rf = gen_rf.cuda()
     out_human = model(gen_rf) # for only id
+    #out_human = model(rf.unsqueeze(1))
     
 
     #loss = criterion(out, target_heatmap)
@@ -154,7 +155,7 @@ if __name__ == '__main__':
     #model_name = "210112_mixup_nlayer18_adam_lr0.001_batch32_momentum0.9_schedule[10, 20]_nepoch30"
     #model_name = '210113_intensity_nlayer18_adam_lr0.001_batch32_momentum0.9_schedule[10, 20]_nepoch30'
     #model_name = '210119_hrnet_nlayer18_adam_lr0.001_batch16_momentum0.9_schedule[10, 20]_nepoch30_hrnet'
-    model_name = '210422_GAN_model3_nlayer18_adam_lr0.001_batch64_momentum0.9_schedule[10, 20]_nepoch60_resnet'
+    model_name = '210507_model_final007_nlayer18_adam_lr0.001_batch64_momentum0.9_schedule[10, 20]_nepoch60_resnet'
     if len(model_name) == 0:
         print("You must enter the model name for testing")
         sys.exit()
@@ -215,7 +216,7 @@ if __name__ == '__main__':
     dataloader = DataLoader(test_data, batch_size=args.batch_size, shuffle=True, num_workers=16, pin_memory=True)
 
     model_name = model_name + '_epoch{}.pt'
-    gen_name = 'generator_model3' + '_epoch{}.pt'
+    gen_name = 'generator_final_model007' + '_epoch{}.pt'
     # 원하는 모델 구간 지정해야함.
     #for i in range(20, 30):
     for i in range(0, 60):

@@ -40,8 +40,8 @@ model_name = '{}_nlayer{}_{}_lr{}_batch{}_momentum{}_schedule{}_nepoch{}_{}'.for
         args.nepochs,
         args.arch
     )
-gen_name = 'generator_duel_model3'
-dis_name = 'discriminator_duel_model3'
+gen_name = 'generator_final_model007'
+dis_name = 'pre_discriminator_final_model007'
 logger = make_logger(log_file=model_name)
 logger.info("saved model name "+model_name)        
 
@@ -68,8 +68,10 @@ else:
         if gen_train == True :
             discriminator = get_discriminator(num_layer=args.nlayer)
             generator = get_generator(num_layer=args.nlayer)
+            discriminator2 = get_discriminator2(num_layer=args.nlayer)
         if dis_train == True:
             discriminator = get_discriminator(num_layer=args.nlayer)
+            discriminator2 = get_discriminator2(num_layer=args.nlayer)
     else:
         model = get_pose_net(num_layer=args.nlayer, input_depth=2048-args.cutoff)
 
@@ -88,7 +90,8 @@ else:
         generator = torch.nn.DataParallel(generator, device_ids = [set_gpu_num]).cuda()
         #generator.module.load_state_dict(torch.load('./save_model/generator_epoch1.pt'))
         discriminator = torch.nn.DataParallel(discriminator, device_ids = [set_gpu_num]).cuda()
-        discriminator.module.load_state_dict(torch.load('./save_model/discriminator_model3_epoch3.pt'))
+        discriminator2 = torch.nn.DataParallel(discriminator2, device_ids = [set_gpu_num]).cuda()
+        #discriminator.module.load_state_dict(torch.load('./save_model/pre_discriminator_duel_model_epoch0.pt'))
     if dis_train == True :
         discriminator = torch.nn.DataParallel(discriminator, device_ids = [set_gpu_num]).cuda()
     
@@ -106,9 +109,11 @@ if args.optimizer == 'adam':
     if model_train == True :
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     if gen_train == True :
-        gen_optimizer = torch.optim.Adam(generator.parameters(), lr=args.lr)
-    if dis_train == True :
-        dis_optimizer = torch.optim.Adam(discriminator.parameters(), lr=args.lr)
+        gen_optimizer = torch.optim.Adam(generator.parameters(), lr=3e-3) #1e-4 ~ 1e-2
+        dis_optimizer = torch.optim.Adam(discriminator.parameters(), lr=7e-4)
+        dis2_optimizer = torch.optim.Adam(discriminator2.parameters(), lr=1e-6)
+    #if dis_train == True :
+    
     logger.info('use adam optimizer')
 else:
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=1e-4, nesterov=False)
@@ -116,11 +121,11 @@ else:
 
 #lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.schedule, gamma=args.gammas)
 if model_train == True :
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 6, gamma=args.gammas)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 5, gamma=args.gammas)
 if gen_train == True :
-    lr_scheduler_gen = torch.optim.lr_scheduler.StepLR(gen_optimizer, step_size = 6, gamma=args.gammas)
-if dis_train == True :
-    lr_scheduler_dis = torch.optim.lr_scheduler.StepLR(dis_optimizer, step_size = 6, gamma=args.gammas)
+    lr_scheduler_gen = torch.optim.lr_scheduler.StepLR(gen_optimizer, step_size = 3, gamma=2)
+    lr_scheduler_dis = torch.optim.lr_scheduler.StepLR(dis_optimizer, step_size = 3, gamma=2)
+    lr_scheduler_dis2 = torch.optim.lr_scheduler.StepLR(dis2_optimizer, step_size = 3, gamma=2)
 
 #----- dataset -----
 train_data = PoseDataset(mode='train', args=args)
@@ -145,19 +150,23 @@ print(begin_time)
 #    discriminator.train()
 for epoch in range(args.nepochs):
     
-    if model_train == True :
-        if epoch % 2 == 0 :
+    if gen_train == True :
+        if epoch % 2 == 1 :
             dis_train = False
             logger.info("generator_train")
             model.train()
             generator.train()
             discriminator.eval()
+            discriminator2.eval()
         else :
             dis_train = True
             logger.info("discriminator_train")
-            model.eval()
+            #model.eval()
             generator.eval()
             discriminator.train()
+            discriminator2.train()
+    if model_train == True and gen_train == False :
+        model.train()
             
     if model_train == True :
         logger.info("Epoch {}\tcurrent lr : {} {}".format(epoch, optimizer.param_groups[0]['lr'], lr_scheduler.get_last_lr()))
@@ -172,30 +181,41 @@ for epoch in range(args.nepochs):
     h_sum_acc = 0
     dis_avg_acc = 0
     dis_sum_acc = 0
+    dis2_avg_acc = 0
+    dis2_sum_acc = 0
     total_cnt = 0
     h_total_cnt = 0
     dis_total_cnt = 0
+    dis2_total_cnt = 0
     iterate = 0
     total_use_loss = 0
-
+    bool_dis2_train = False
 
     for rf, target_heatmap, target_label, antena_label, domain in tqdm(train_dataloader):
         #print(rf.shape, target_heatmap.shape)
         #print(rf.dtype, target_heatmap.dtype)
-        rf, target_heatmap, target_label, antena_label, domain = rf.cuda(), target_heatmap.cuda(), target_label.cuda(), antena_label.cuda(), domain.cuda()#rf 는 input raw signal
+        #rf, target_heatmap, target_label, antena_label, domain = rf.cuda(), target_heatmap.cuda(), target_label.cuda(), antena_label.cuda(), domain.cuda()#rf 는 input raw signal
+        rf, target_label, antena_label = rf.cuda(), target_label.cuda(), antena_label.cuda()
         #out = model(rf)
         
         
         
         loss = 0
+        
         ###############discriminator pre train##############
-        if dis_train == True and model_train == False:
+        
+        if dis_train == True and epoch == 0:
+            discriminator.train()
             dis_label = torch.zeros(rf.shape[0]).cuda()
-            new_rf = torch.zeros((rf.shape[0]),1792*2).cuda()
+            new_rf = torch.zeros((rf.shape[0]),1792*2).cuda() #안테나 1개는 *3->*1로
             new_rf = new_rf.unsqueeze(0)
-            new_rf = new_rf.view([-1, 2, 1792])
+            new_rf = new_rf.view([-1, 2, 1792]) #안테나 1개는 *3->*1로
             for i in range(rf.shape[0]):
-                target = randint(0, rf.shape[0]-1)
+                if i < (int(rf.shape[0]/2)):
+                    for k in range(int(rf.shape[0]/2)):
+                        target = randint(0, rf.shape[0]-1)
+                        if antena_label[i] == antena_label[target] and i != target:
+                            break
                 target_rf = rf[target]
                 new_rf[i] = torch.cat([rf[i].unsqueeze(0), target_rf.unsqueeze(0)], dim = 0)
                 if antena_label[i] == antena_label[target] :
@@ -208,37 +228,47 @@ for epoch in range(args.nepochs):
                 #print("dis_out", dis_out)
                 #print("dis_label", dis_label)
             loss = signal_cr(dis_out, dis_label)
+            #loss = my_BCELoss(dis_out, dis_label)
                 #print(loss)
             dis_optimizer.zero_grad()
-            loss.backward()
+            if loss != 0 :
+                loss.backward()
             dis_optimizer.step()
-            _, h_predict = torch.max(dis_out, 1)
+            #_, h_predict = torch.max(dis_out, 1)
+            '''
+        ########################discriminator2 train########################
+        ###############step 1 : discriminator 2 #####################
         
-        ########################discriminator train########################
-        if dis_train == True and model_train == True:
+        if epoch == 0 :#% 2 == 1:
+            bool_dis2_train = True
+            #continue
             rf = rf.float()
+            generator.requires_grad = False
+            discriminator2.requires_grad = True
             gen_rf = generator(rf.unsqueeze(1))
             gen_rf = gen_rf.cuda()
-            dis_label = torch.zeros(rf.shape[0]).cuda()
-            new_rf = torch.zeros((rf.shape[0]),1792*2).cuda()
-            new_rf = new_rf.unsqueeze(0)
-            new_rf = new_rf.view([-1, 2, 1792])
-            for i in range(rf.shape[0]):
-                target = randint(0, rf.shape[0]-1)
-                target_rf = gen_rf[target]
-                new_rf[i] = torch.cat([gen_rf[i], target_rf], dim = 0)
-                if antena_label[i] == antena_label[target] :
-                    dis_label[i] = float(1.0)
-                else :
-                    dis_label[i] = float(0.0)
+            
+            dis_label = torch.ones(rf.shape[0]).cuda()
+            dis2_label = torch.zeros(rf.shape[0]).cuda()
             dis_label = dis_label.unsqueeze(1)
-            dis_out = discriminator(new_rf)
+            dis2_label = dis2_label.unsqueeze(1)
+
+            
+            dis_out = discriminator2(rf.unsqueeze(1))
             dis_out = dis_out.cuda()
-            loss = signal_cr(dis_out, dis_label)
-            dis_optimizer.zero_grad()
-            loss.backward()
-            dis_optimizer.step()
-            _, h_predict = torch.max(dis_out, 1)
+            dis2_out = discriminator2(gen_rf)
+            dis2_out = dis2_out.cuda()
+            loss = signal_cr(dis2_out, dis2_label) # 진짜인지 아닌지 loss
+            loss += signal_cr(dis_out, dis_label)
+            #loss = my_BCELoss(dis_out, dis_label)
+            if loss != 0 :
+                dis2_optimizer.zero_grad()
+                loss.backward()
+                dis2_optimizer.step()
+                torch.cuda.empty_cache()
+                #_, h_predict = torch.max(dis_out, 1)
+        if iterate % 1000 == 0 :
+            print(loss)
             
         #########################for 2d################################
         #out, out_human = model(rf) # 32개의 13*120*120 out
@@ -255,33 +285,89 @@ for epoch in range(args.nepochs):
         #loss = 10*cr(out, target_heatmap) + 0.005*id_loss + 30*d_loss # 0.03 기존
         #loss = 10*cr(out, target_heatmap) + 0.003*id_loss + 50*d_loss # 0.03 기존
         #loss = 0.005*id_loss + 30*d_loss 
-        
-        if gen_train == True :
-            dis_label = torch.ones(64).cuda() #무조건 1이 나오도록 학습 하기 위해 label 모두 1
+        '''
+        '''
+        ###############discriminator pre train##############
+        if epoch %2 == 1:
+            generator.eval()
+            discriminator.train()
+            dis_label = torch.zeros(rf.shape[0]).cuda()
+            new_rf = torch.zeros((rf.shape[0]),1792*2).cuda() #안테나 1개는 *3->*1로
+            new_rf = new_rf.unsqueeze(0)
+            new_rf = new_rf.view([-1, 2, 1792]) #안테나 1개는 *3->*1로
+            
+            rf = rf.float()
+            gen_rf = generator(rf.unsqueeze(1))
+            
+            for i in range(rf.shape[0]):
+                if i < (int(rf.shape[0]/2)):
+                    for k in range(int(rf.shape[0]/2)):
+                        target = randint(0, rf.shape[0]-1)
+                        if antena_label[i] == antena_label[target] and i != target:
+                            break
+                target_rf = gen_rf[target]
+                new_rf[i] = torch.cat([gen_rf[i], target_rf], dim = 0)
+                if antena_label[i] == antena_label[target] :
+                    dis_label[i] = float(1.0)
+                else :
+                    dis_label[i] = float(0.0)
             dis_label = dis_label.unsqueeze(1)
-            new_rf = torch.zeros((64,1792*2)).cuda()
+            dis_out = discriminator(new_rf)
+            dis_out = dis_out.cuda()
+                #print("dis_out", dis_out)
+                #print("dis_label", dis_label)
+            loss = signal_cr(dis_out, dis_label)
+            #loss = my_BCELoss(dis_out, dis_label)
+                #print(loss)
+            dis_optimizer.zero_grad()
+            if loss != 0 :
+                loss.backward()
+            dis_optimizer.step()
+            #_, h_predict = torch.max(dis_out, 1)
+        '''
+        #############step 2 : generator######################
+        if gen_train == True and epoch%2 == 1 :# > 0 :#% 2 == 1:
+            generator.train()
+            #discriminator2.eval()
+            discriminator.eval()
+            loss = 0
+            generator.requires_grad = True
+            discriminator.requires_grad = False
+            discriminator2.requires_grad = False
+            dis_label = torch.ones(rf.shape[0]).cuda() #무조건 1이 나오도록 학습 하기 위해 label 모두 1
+            dis_label = dis_label.unsqueeze(1)
+            #dis2_label = torch.ones(rf.shape[0]).cuda()
+            #dis2_label = dis2_label.unsqueeze(1)
+            
+            
+            
+            new_rf = torch.zeros((rf.shape[0], 1792*2)).cuda() #1 안테나 1792*2 3안테나 1792*2*3 # 1792 default unet 936
             new_rf = new_rf.unsqueeze(1)
-            new_rf = new_rf.view([-1, 2, 1792])
-            target = -1
-            #rf = rf.view(-1, 1792)
-            #print(rf.shape)
+            new_rf = new_rf.view([-1, 2, 1792]) #1 안테나 1792, 3안테나 1792*3
+            
             rf = rf.float()
             gen_rf = generator(rf.unsqueeze(1))
             gen_rf = gen_rf.cuda()
             #print(gen_rf.shape)
             #print((gen_rf).shape)
+            #new_rf2 = gen_rf
             for i in range(rf.shape[0]):
                 target = randint(0, rf.shape[0]-1)
                 target_rf = gen_rf[target]
-            #if target != -1:
-            #    for i in range(rf.shape[0]):
                 new_rf[i] = torch.cat([gen_rf[i], target_rf], dim = 0)
+                
+            
+            #dis2_out = discriminator2(gen_rf)
+            #dis2_out = dis2_out.cuda()
+            #real_loss = signal_cr(dis2_out, dis2_label) # 진짜인지 아닌지 loss
+            
             #else :
-            #    continue
+            #continue
             dis_out = discriminator(new_rf)
             dis_out = dis_out.cuda()
             #print("dis_out", dis_out)
             #print("dis_label", dis_label)
+            #signal_loss = my_BCELoss(dis_out, dis_label)
             signal_loss = signal_cr(dis_out, dis_label)
             '''
             if iterate % 3000 == 0:
@@ -290,42 +376,75 @@ for epoch in range(args.nepochs):
                     plt.savefig('./train_sig/signal_plot_normal_{}.png'.format(k))
                     plt.clf()
             '''
-            if epoch % 2 == 0 :
-                loss += 0.01*signal_loss
+            #loss += real_loss
+            loss += 0.01*signal_loss
             #print(loss)
-                gen_optimizer.zero_grad()
+            
+            #gen_optimizer.zero_grad()
+            #loss.backward()
+            #gen_optimizer.step()
+            
             #loss.backward()
             #gen_optimizer.step()
             #_, h_predict = torch.max(dis_out, 1)
             
-        if model_train == True :
+        ####################step 3 : model train########################
+        if gen_train == True and epoch > 0 :#% 2 == 0 and epoch != 0 :
+            model.train()
+            #generator.eval()
+            #generator.requires_grad = False
+            if epoch % 2 == 0 :
+                generator.eval()
+                generator.requires_grad = False
+                loss = 0
+            
+            gen_rf = generator(rf.unsqueeze(1))
+            gen_rf = gen_rf.cuda()
+            
             #rf = rf.view(-1, 1792)
             #print(rf.shape)
             #rf = rf.float()
             #gen_rf = generator(rf)
             #gen_rf = gen_rf.cuda()
-        
-            
             #print((target_rf).shape)
             out = model(gen_rf)
             out = out.cuda()
+            #print(out.shape, target_label.shape)
             id_loss = human_cr(out, target_label)
-            if epoch % 2 == 0 :
-                loss += id_loss
-                optimizer.zero_grad()
-                loss.backward()
+            
+            loss += id_loss
+            #gen_optimizer.zero_grad()
+            optimizer.zero_grad()
+            if epoch % 2 == 1 :
+                gen_optimizer.zero_grad()
+            loss.backward()
+            #gen_optimizer.step()
+            if epoch %2 == 1 :
                 gen_optimizer.step()
-                optimizer.step()
-                _, h_predict = torch.max(out, 1)
+            optimizer.step()
+            _, h_predict = torch.max(out, 1)
+                
+        ##############3only model##############
+        if model_train == True and gen_train == False :
+            rf = rf.float()
+            out = model(rf.unsqueeze(1))
+            out = out.cuda()
+            id_loss = human_cr(out, target_label)
+            loss += id_loss
+            optimizer.zero_grad()
+            loss.backward()
+            #gen_optimizer.step()
+            optimizer.step()
+            _, h_predict = torch.max(out, 1)
             
     
         
         #_, h_predict = torch.max(out_human, 1) #for pose + id
 
-        epoch_loss.append(loss)
+        #epoch_loss.append(loss)
         #_, temp_avg_acc, cnt, pred = accuracy(out.detach().cpu().numpy(), target_heatmap.detach().cpu().numpy())
         if model_train == True :
-            if epoch % 2 == 0:
+            if epoch > 0 :#% 2 == 0 and epoch != 0:
                 h_temp_avg_acc, h_cnt = human_accuracy(out, target_label)
                 h_sum_acc += h_temp_avg_acc * h_cnt
                 h_total_cnt += h_cnt
@@ -338,13 +457,19 @@ for epoch in range(args.nepochs):
             dis_sum_acc += dis_temp_avg_acc*dis_cnt
             dis_total_cnt += dis_cnt
             dis_avg_acc = dis_sum_acc / dis_total_cnt if dis_total_cnt != 0 else 0
+            
         
         if gen_train == True :
-            if epoch % 2 == 0:
+            if epoch >0 :#% 2 == 1:
                 dis_temp_avg_acc, dis_cnt = dis_accuracy(dis_out, dis_label)
                 dis_sum_acc += dis_temp_avg_acc*dis_cnt
                 dis_total_cnt += dis_cnt
                 dis_avg_acc = dis_sum_acc / dis_total_cnt if dis_total_cnt != 0 else 0
+            if bool_dis2_train :
+                dis2_temp_avg_acc, dis2_cnt = dis_accuracy(dis2_out, dis2_label)
+                dis2_sum_acc += dis2_temp_avg_acc*dis2_cnt
+                dis2_total_cnt += dis2_cnt
+                dis2_avg_acc = dis2_sum_acc / dis2_total_cnt if dis2_total_cnt != 0 else 0
             
         #sum_acc += temp_avg_acc * cnt 
         sum_acc = 0 # pose 안할 때
@@ -360,34 +485,45 @@ for epoch in range(args.nepochs):
         #        plt.clf()
         
             #logger.info("iteration[%d] batch loss %.6f\tavg_acc\t%.6f\th_avg_acc %.4f\ttotal_count %d\tpeople_loss %.6f"%(iterate, loss.item(), avg_acc, h_avg_acc, total_cnt, id_loss))
-            if model_train == True:
+            if model_train == True and epoch >0 :#%2 == 0 and epoch != 0:
+                logger.info("iteration[%d] batch loss %.6f\th_avg_acc %.4f\ttotal_count %d\tpeople_loss "%(iterate, id_loss.item(), h_avg_acc, total_cnt))
+            if model_train == True and gen_train == False :
                 logger.info("iteration[%d] batch loss %.6f\th_avg_acc %.4f\ttotal_count %d\tpeople_loss "%(iterate, id_loss.item(), h_avg_acc, total_cnt))
             if dis_train == True :
-                logger.info("iteration[%d] batch loss %.6f\tdiscriminate_avg_acc %.4f\ttotal_count %d\tpeople_loss "%(iterate, loss.item(), dis_avg_acc, total_cnt))
-            #if gen_train == True :
-            #    logger.info("iteration[%d] batch loss %.6f\tdiscriminate_avg_acc %.4f\ttotal_count %d\tpeople_loss "%(iterate, signal_loss.item(), dis_avg_acc, total_cnt))
+                logger.info("iteration[%d] batch loss %.6f\tdis_avg_acc %.4f\ttotal_count %d"%(iterate, loss, dis_avg_acc, total_cnt))
+                if bool_dis2_train :
+                    logger.info("iteration[%d] batch loss %.6f\tdis_avg_acc %.4f\ttotal_count %d"%(iterate, loss, dis2_avg_acc, total_cnt))
+            if gen_train == True and epoch>0:#epoch % 2 == 1:
+                #logger.info("iteration[%d] batch loss %.6f\tdiscriminate_avg_acc %.4f\ttotal_count %d\tdis2_avg_acc %.4f "%(iterate, signal_loss.item(), dis_avg_acc, total_cnt,  dis2_avg_acc))
+                logger.info("iteration[%d] batch loss %.6f\tdiscriminate_avg_acc %.4f "%(iterate, signal_loss.item(), dis_avg_acc))
         iterate += 1
         
     #logger.info("human predict : {} \t human_label : {}".format(out, target_label))
     #logger.info("human predict : {} \t human_label : {}".format(out_human, target_label)) #for pose + id
     #logger.info("epoch loss : %.6f"%torch.tensor(epoch_loss).mean().item()) #for pose 
     #logger.info("epoch acc on train data : %.4f"%(avg_acc)) #for pose
-    if model_train == True :
-        if epoch % 2 == 0 :
+    if model_train == True and gen_train == True:
+        if epoch > 0 :#% 2 == 0 and epoch != 0 :
             logger.info("epoch h_acc on train data : %.4f"%(h_avg_acc))
             lr_scheduler.step()
-            torch.save(model.module.state_dict(), "save_model/" + model_name + "_epoch{}.pt".format(epoch/2))
+            torch.save(model.module.state_dict(), "save_model/" + model_name + "_epoch{}.pt".format(int(epoch)-1))#(int(epoch/2)-1))
+    if model_train == True and gen_train== False :
+        logger.info("epoch h_acc on train data : %.4f"%(h_avg_acc))
+        lr_scheduler.step()
+        torch.save(model.module.state_dict(), "save_model/" + model_name + "_epoch{}.pt".format(epoch))
     if dis_train == True :
-        logger.info("epoch dis_acc on train data : %.4f"%(dis_avg_acc))
-        logger.info("discriminator : {}\nlabel : {}".format(dis_out, dis_label))
+        logger.info("epoch dis_acc on train data : %.4f\t%.4f"%(dis_avg_acc, dis2_avg_acc))
+        
+        #if epoch == 0 :
         lr_scheduler_dis.step()
         torch.save(discriminator.module.state_dict(), "save_model/" + dis_name + "_epoch{}.pt".format(epoch))
     if gen_train == True :
-        if epoch % 2 == 0 :
+        if epoch >0 :#% 2 == 0 and epoch != 0 :
         #logger.info("epoch gen_acc on train data : %.4f"%(h_avg_acc))
-            logger.info("generator makes discriminator : {}\nlabel : {}".format(dis_out, dis_label))
+            #logger.info("generator makes discriminator : {}\nlabel : {}".format(dis_out, dis_label))
+            #logger.info("discriminator : {}\nlabel : {}".format(dis2_out, dis2_label))
             lr_scheduler_gen.step()
-            torch.save(generator.module.state_dict(), "save_model/" + gen_name + "_epoch{}.pt".format(epoch/2))
+            torch.save(generator.module.state_dict(), "save_model/" + gen_name + "_epoch{}.pt".format(int(epoch)-1))#(int(epoch/2)-1))
     #logger.info("use d_loss : %d"%(total_use_loss)) #dloss 사용 횟수
     
     if avg_acc > max_acc:

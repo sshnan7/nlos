@@ -135,8 +135,14 @@ class PoseDataset(Dataset):
                 
                 if mode == 'train':
                     if len(rf_file_list) > 5000:
-                        for i in range(6000):
-                            rf_file_list.pop()  
+                        for i in range(5000):
+                            rf_file_list.pop()
+                        for i in range(1000):
+                            rf_file_list.pop(4000)
+                            
+                        #5번째    
+                        #for i in range(6000):
+                        #    rf_file_list.pop()  
                                     
                     elif len(rf_file_list) < 5000:
                         pass
@@ -145,14 +151,22 @@ class PoseDataset(Dataset):
                             
                     else:
                         for i in range(1000):
-                            rf_file_list.pop()
+                            rf_file_list.pop(4000) # 4번
+                        #    rf_file_list.pop() #5번
                             
                 if mode == 'test' :
                     if len(rf_file_list) > 5000:
-                        for i in range(4000):
-                            rf_file_list.pop(0)
                         for i in range(5000):
                             rf_file_list.pop()
+                            
+                        for i in range(4000):
+                            rf_file_list.pop(0)
+                        for i in range(0):
+                            rf_file_list.pop()
+                        #5번
+                        #for i in range(4000):
+                        #    rf_file_list.pop(0)
+                        
                             
                     elif len(rf_file_list) < 5000:
                         pass
@@ -162,6 +176,10 @@ class PoseDataset(Dataset):
                     else:
                         for i in range(4000):
                             rf_file_list.pop(0)
+                        for i in range(0):
+                            rf_file_list.pop()
+                        #for i in range(4000):
+                        #    rf_file_list.pop(0) # 5번
                     
                             
                 rf_file_list = sorted(rf_file_list)
@@ -186,19 +204,19 @@ class PoseDataset(Dataset):
                                 '''
                                 #temp_raw_rf = np.load(rf)[:2, :2, self.cutoff:] # 2x2 rf
                                 #print("raw shape", temp_raw_rf.shape) # 3, 3, 2048 - cutoff
-                                
+                                '''
                                 #----- normalization ------
                                 if self.is_normalize is True:
                                     
                                     ###############for 2d###################
-                                    '''
-                                    stdev = np.std(temp_raw_rf)
-                                    temp_raw_rf = temp_raw_rf/stdev
-                                    '''
+                                    
+                                    #stdev = np.std(temp_raw_rf)
+                                    #temp_raw_rf = temp_raw_rf/stdev
+                                    
                                     ##############for 1d#################
                                     stdev = np.std(temp_raw_rf)
                                     temp_raw_rf = temp_raw_rf/stdev
-                                    
+                                    '''
                                 #temp_raw_rf = np.transpose(temp_raw_rf, (2, 1, 0)).transpose(0, 2, 1)
                                 #temp_raw_rf = torch.tensor(temp_raw_rf).float()
             
@@ -247,7 +265,7 @@ class PoseDataset(Dataset):
                                 #print("now shape",temp_raw_rf.shape)
                                 rf_data.append(temp_raw_rf)
                                 
-                            elif mode == 'test' and num_sig1 == 2 and num_sig2 == 2 :
+                            elif mode == 'test' and (num_sig1 == 2 and num_sig2 == 2) :
                                 temp_raw_rf = np.load(rf)[num_sig1, num_sig2, self.cutoff:] # 1x1 rf
                                 #temp_raw_rf = np.load(rf)[:2, :2, self.cutoff:] # 2x2 rf
                                 #print("raw shape", temp_raw_rf.shape) # 3, 3, 2048 - cutoff
@@ -258,10 +276,11 @@ class PoseDataset(Dataset):
                                         for j in range(temp_raw_rf):
                                             stdev = np.std(temp_raw_rf)
                                             temp_raw_rf = temp_raw_rf/stdev
-                                '''
+                                
                                 ##############for 1d#################
                                 stdev = np.std(temp_raw_rf)
                                 temp_raw_rf = temp_raw_rf/stdev
+                                '''
                                 #temp_raw_rf = np.transpose(temp_raw_rf, (2, 1, 0)).transpose(0, 2, 1)
                                 #temp_raw_rf = torch.tensor(temp_raw_rf).float()
             
@@ -427,7 +446,7 @@ class PoseDataset(Dataset):
             
             
             
-        s_stack = 3
+        s_stack = 5
         d_stack = 1
         
         ##########################avg_space#######################
@@ -456,9 +475,9 @@ class PoseDataset(Dataset):
                         print(temp_rf_data)
                     new_rf_data.append(temp_rf_data)
                     
-        '''
-        #####################################################
         
+        #####################################################
+        '''
         
         
         #########################use d stack#######################
@@ -478,8 +497,11 @@ class PoseDataset(Dataset):
                        avg_s += s_set[k]
                            
                    avg_s = avg_s/s_stack
+                   stdev = np.std(avg_s)
+                   avg_s = avg_s/stdev
                    avg_s = torch.tensor(avg_s).float()
                    '''
+                   #############여기 주석###############
                    for k in range(d_stack):
                        #d_set.append((s_set[k]+s_set[k+1])/s_stack)
                        #d_set.append((s_set[k+1]-s_set[k])/s_stack)
@@ -494,11 +516,13 @@ class PoseDataset(Dataset):
                            d_set[d_num] = d_set[d_num]/stdev
                            d_set[d_num]= (torch.tensor(d_set[d_num]).float()).unsqueeze(0)
                            #d_set[d_num].view(1, 1792)      
-                             '''
+                   ###############여기 주석##############
+                            '''
                    #temp_rf_data = torch.cat([d_set[0].squeeze(), d_set[1].squeeze()], dim = 0) #avg_s, d
                    #print("rf",temp_rf_data)
                    #print(d_set[0])
                    temp_rf_data = avg_s
+                   
                    
                    #print(temp_rf_data.size())
                    #temp_rf_data.view([-1, 1792])
@@ -521,32 +545,35 @@ class PoseDataset(Dataset):
                        #for t in temp_rf_data.shape :
                        #    print(temp_rf_data[shape])
                    
-                   
                    '''
+                   #####################역 포즈#############
                    if mode == 'train' :
                        temp_rf_data = torch.cat([d_set[0], -d_set[1]], dim = 0)
                        #temp_rf_data = -d_set[1] 
                        ##############normalization#################
                        new_rf_data.append(temp_rf_data.unsqueeze(0))
-                    '''
+                    
                         
         #######################################################
         
         
-        ################for only 2 stack#######################
-        '''
+        ################for 3 antena#######################
         for i in range(people_cnt): 
-            for j in range(rf_cnt_by_dir):
-                if j > rf_cnt_by_dir - (s_stack) :
+            for j in range(int(rf_cnt_by_dir/3)):
+                d_set = []
+                s_set = []
+                if j*3 > rf_cnt_by_dir - (3) :
                     continue
                 else :
-                    rf_space_average = rf_data[i*rf_cnt_by_dir + j + 1]
-                    temp_rf_data = rf_data[i*rf_cnt_by_dir + j] - rf_space_average
-                    temp_rf_data = temp_rf_data.squeeze()
-                    temp_rf_data = temp_rf_data.unsqueeze(0)
-                    new_rf_data.append(temp_rf_data)
-        '''
-      
+                   #############avg_space##################
+                   temp_rf = torch.tensor(rf_data[i*rf_cnt_by_dir + j*3])+ torch.tensor(rf_data[i*rf_cnt_by_dir + j*3 + 1]) + torch.tensor(rf_data[i*rf_cnt_by_dir + j*3 + 2])
+                   temp_rf = temp_rf/3
+                   #print('temp_rf', temp_rf.shape) 
+                   
+                   #print('temp_rf', temp_rf.shape)
+                
+                   new_rf_data.append(temp_rf)
+              
         ###############for GAN#################
         
         
@@ -564,23 +591,14 @@ class PoseDataset(Dataset):
                     plt.plot(rf_data[i])
                     plt.savefig('./test_sig/signal_plot_normal_{}.png'.format(i))
                     plt.clf()
+                    '''
         
         people_cnt = (len(nlos_dir) + len(los_dir))
         print("people_cnt", people_cnt)
         for i in range(people_cnt):
-            human_num_list.append((i+1)*rf_cnt_by_dir -1)
-        '''
-        ###########s, d 썻을 때#############
-        new_rf_cnt_by_dir = int(len(new_rf_data)/people_cnt) # 폴더당 rf 수
-        print("new_rf_cnt_by_dir", new_rf_cnt_by_dir)
-        for i in range(people_cnt):
-            human_num_list.append((i+1)*(new_rf_cnt_by_dir)-1)
-        #print("rf_data_크기 :", len(new_rf_data))
-        print(human_num_list)
-        #for i in range(1700):
-        #    print((new_rf_data[0])[0][i])
-        ####################################
-        '''
+            human_num_list.append((i+1)*int(rf_cnt_by_dir/1) -1) #여기서 나누는건  1s를 만드는데 쓰는 안테나 개수
+        
+        
         #############GAN###################
         
         #############################

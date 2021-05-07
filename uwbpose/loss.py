@@ -10,6 +10,7 @@ from __future__ import print_function
 
 import torch.nn as nn
 import torch
+import math
 
 class JointsMSELoss(nn.Module):
     def __init__(self):
@@ -63,6 +64,31 @@ def dual_loss(output, target):
             use_loss += 1
         
     return loss, use_loss
+
+def my_BCELoss(output, target):
+    loss = 0
+    use_loss = 0
+    batch_size = output.size(0)
+    label_size = output.size(1)
+    for i in range(batch_size):
+        y = target[i][0]
+        h = output[i][0]
+        #print(y, h)
+        if (h == 0.001 and y == 0) or (h == 0.999 and y == 1):
+            continue
+        else :
+            temp_loss = -y*math.log(h)-(1-y)*math.log(1-h)
+            temp_loss.requires_grad = True
+            #print(temp_loss)
+            use_loss += 1
+            loss += temp_loss
+    if loss == 0 :
+        loss = 0
+    else :
+        loss = loss/use_loss
+        #print("loss", loss)
+    return loss
+            
 '''
         _, predicted = torch.max(output, 1)
         for i in range(len(output[0])):
